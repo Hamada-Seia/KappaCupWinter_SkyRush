@@ -19,6 +19,9 @@ void Game::Update()
 
     m_pos.x += stickX * 5.0f;
 
+    float stickY = g_pad[0]->GetLStickYF();
+    m_pos.y += stickY * 5.0f;
+
     float targetAngle = -stickX * 25.0f;
     m_bankAngle += (targetAngle - m_bankAngle) * 0.15f;
 
