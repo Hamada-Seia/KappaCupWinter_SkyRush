@@ -29,10 +29,20 @@ namespace nsK2EngineLow {
 			m_inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
 			m_inputs.NumDescs = numInstance;
 
+			// バッファがまだ作られていないなら、更新ではなく新規構築にする
+			if (isUpdate && m_topLevelASBuffers.pInstanceDesc == nullptr) {
+				isUpdate = false;
+			}
+
 			if (isUpdate) {
 				m_inputs.Flags |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE;
 			}
 			else {
+
+				if (numInstance == 0) {
+					return;
+				}
+
 				D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
 				d3dDevice->GetRaytracingAccelerationStructurePrebuildInfo(&m_inputs, &info);
 				// TLASの再構築が必要。
@@ -44,13 +54,30 @@ namespace nsK2EngineLow {
 					sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * numInstance,
 					D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ,
 					kUploadHeapProps
+
+
 				);
+
+				if (!m_topLevelASBuffers.pScratch ||
+					!m_topLevelASBuffers.pResult ||
+					!m_topLevelASBuffers.pInstanceDesc) {
+					OutputDebugStringA("TLAS用バッファの作成に失敗しました\n");
+					__debugbreak(); // ここで止まる
+					return;
+				}
 				
 			}
 
 			// インスタンス情報をコピー。
 			D3D12_RAYTRACING_INSTANCE_DESC* instanceDescs;
-			m_topLevelASBuffers.pInstanceDesc->Map(0, nullptr, (void**)&instanceDescs);
+			if (m_topLevelASBuffers.pInstanceDesc == nullptr) {
+				return; // 作られていないなら何もしない
+			}
+			HRESULT hr = m_topLevelASBuffers.pInstanceDesc->Map(0, nullptr, (void**)&instanceDescs);
+			if (FAILED(hr)) {
+				__debugbreak();
+				return;
+			}
 			ZeroMemory(instanceDescs, sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * numInstance);
 
 			for (int i = 0; i < numInstance; i++) {

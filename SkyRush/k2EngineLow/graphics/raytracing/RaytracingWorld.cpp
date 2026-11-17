@@ -43,6 +43,25 @@ namespace nsK2EngineLow {
 					memset(&desc, 0, sizeof(desc));
 					desc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
 					desc.Triangles.Transform3x4 = 0;
+
+					// BLAS構築に使う頂点・インデックス情報を確認する。
+					char message[256];
+
+					sprintf_s(
+						message,
+						"Vertex: Address=%llX Stride=%u Count=%u | Index: Address=%llX Size=%u Format=%d Count=%u\n",
+						vertexBufferView->BufferLocation,
+						vertexBufferView->StrideInBytes,
+						desc.Triangles.VertexCount,
+						indexBufferView.BufferLocation,
+						indexBufferView.SizeInBytes,
+						(int)indexBufferView.Format,
+						desc.Triangles.IndexCount
+					);
+
+					OutputDebugStringA(message);
+
+
 					desc.Triangles.VertexBuffer.StartAddress = vertexBufferView->BufferLocation;
 					desc.Triangles.VertexBuffer.StrideInBytes = vertexBufferView->StrideInBytes;
 					desc.Triangles.VertexCount = vertexBufferView->SizeInBytes / vertexBufferView->StrideInBytes;

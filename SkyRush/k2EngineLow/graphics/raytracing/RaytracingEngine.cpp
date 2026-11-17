@@ -7,6 +7,8 @@ namespace nsK2EngineLow {
 	namespace raytracing {
 		using namespace std;
 
+
+		// GPU用バッファを作成する関数
 		ID3D12Resource* CreateBuffer(
 			ID3D12Device5* pDevice,
 			uint64_t size,
@@ -14,6 +16,7 @@ namespace nsK2EngineLow {
 			D3D12_RESOURCE_STATES initState,
 			const D3D12_HEAP_PROPERTIES& heapProps)
 		{
+			// バッファの設定
 			D3D12_RESOURCE_DESC bufDesc = {};
 			bufDesc.Alignment = 0;
 			bufDesc.DepthOrArraySize = 1;
@@ -27,10 +30,41 @@ namespace nsK2EngineLow {
 			bufDesc.SampleDesc.Quality = 0;
 			bufDesc.Width = size;
 
-			ID3D12Resource* pBuffer;
-			pDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufDesc, initState, nullptr, IID_PPV_ARGS(&pBuffer));
+			// GPUバッファのポインタを初期化
+			ID3D12Resource* pBuffer = nullptr;
+
+			// GPUバッファを生成する
+			HRESULT hr = pDevice->CreateCommittedResource(
+				&heapProps,
+				D3D12_HEAP_FLAG_NONE,
+				&bufDesc,
+				initState,
+				nullptr,
+				IID_PPV_ARGS(&pBuffer)
+			);
+
+			// 生成に失敗した場合はエラーコードを出力する
+			if (FAILED(hr)) {
+
+				// GPUデバイスが切り離された原因を取得する
+				HRESULT removedReason = pDevice->GetDeviceRemovedReason();
+
+				char message[256];
+
+				sprintf_s(
+					message,
+					"CreateBuffer HRESULT: 0x%08X\nDeviceRemovedReason: 0x%08X\n",
+					static_cast<unsigned int>(hr),
+					static_cast<unsigned int>(removedReason)
+				);
+
+				OutputDebugStringA(message);
+				return nullptr;
+			}
+
 			return pBuffer;
 		}
+
 		void Engine::Init(const InitData& initData)
 		{
 			auto d3dDevice = g_graphicsEngine->GetD3DDevice();
@@ -98,6 +132,17 @@ namespace nsK2EngineLow {
 		}
 		void Engine::Dispatch(RenderContext& rc)
 		{
+			// GPUデバイスの状態を確認する
+			HRESULT hr = g_graphicsEngine->GetD3DDevice()->GetDeviceRemovedReason();
+
+			char message[128];
+			sprintf_s(
+				message,
+				"Dispatch Entry Device Status: 0x%08X\n",
+				static_cast<unsigned int>(hr)
+			);
+			OutputDebugStringA(message);
+
 			if (m_world.GetNumInstance() == 0) {
 				// インスタンスが登録されていない。
 				return;
@@ -106,8 +151,29 @@ namespace nsK2EngineLow {
 			CommitRegistGeometry(rc);
 
 			int backBufferNo = g_graphicsEngine->GetBackBufferIndex();
-			// レイトレワールドを構築する。
+			// レイトレワールド構築前のGPU状態を確認
+			HRESULT beforeBuild = g_graphicsEngine->GetD3DDevice()->GetDeviceRemovedReason();
+
+			char buildmessage[128];
+			sprintf_s(
+				buildmessage,
+				"Before World Build: 0x%08X\n",
+				static_cast<unsigned int>(beforeBuild)
+			);
+			OutputDebugStringA(buildmessage);
+
+			// レイトレワールドを構築する
 			m_world.Build(rc);
+
+			// レイトレワールド構築後のGPU状態を確認
+			HRESULT afterBuild = g_graphicsEngine->GetD3DDevice()->GetDeviceRemovedReason();
+
+			sprintf_s(
+				buildmessage,
+				"After World Build: 0x%08X\n",
+				static_cast<unsigned int>(afterBuild)
+			);
+			OutputDebugStringA(buildmessage);
 
 			// カメラを更新。
 			Camera cam;

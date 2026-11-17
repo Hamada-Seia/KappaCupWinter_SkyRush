@@ -39,6 +39,9 @@ struct PSInput
 ///////////////////////////////////////
 #include "DeferredLighting_srv_uav_register.h"
 
+// 背景用の空テクスチャ
+Texture2D g_sunsetTexture : register(t27);
+
 ///////////////////////////////////////
 // PBRライティング
 ///////////////////////////////////////
@@ -310,6 +313,9 @@ float4 PSMainCore(PSInput In, uniform int isSoftShadow)
     //G-Bufferの内容を使ってライティング
     //アルベドカラーをサンプリング。
     float4 albedoColor = albedoTexture.Sample(Sampler, In.uv);
+    if (albedoColor.w >= 0.99999f)
+        return g_sunsetTexture.Sample(Sampler, In.uv);
+    
     //法線をサンプリング。
     float3 normal = normalTexture.Sample(Sampler, In.uv).xyz;
     //ワールド座標をサンプリング。

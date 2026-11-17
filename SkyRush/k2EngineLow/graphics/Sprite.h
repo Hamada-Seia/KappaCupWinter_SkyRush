@@ -90,6 +90,13 @@ namespace nsK2EngineLow {
 		/// </summary>
 		/// <param name="renderContext">レンダリングコンテキスト</param>
 		void Draw(RenderContext& renderContext);
+
+		// 2Dカメラの影響を受けるか設定する
+		void SetIgnoreCamera2D(bool ignore)
+		{
+			m_ignoreCamera2D = ignore;
+		}
+
 		/// <summary>
 		/// ユーザー定義の拡張定数バッファを取得。
 		/// </summary>
@@ -172,5 +179,6 @@ namespace nsK2EngineLow {
 		Shader				m_vs;					//頂点シェーダー。
 		Shader				m_ps;					//ピクセルシェーダー。
 		Vector4				m_mulColor = Vector4::White;	//乗算カラー。
+		bool m_ignoreCamera2D = false;    // 2Dカメラの影響を無視するか
 	};
 }

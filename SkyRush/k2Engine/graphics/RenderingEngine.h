@@ -716,6 +716,7 @@ namespace nsK2Engine {
         SDeferredLightingCB m_deferredLightingCB;                       // ディファードライティング用の定数バッファ
         Sprite m_copyMainRtToFrameBufferSprite;                         // メインレンダリングターゲットをフレームバッファにコピーするためのスプライト
         Sprite m_diferredLightingSprite;                                // ディファードライティングを行うためのスプライト
+        Texture m_sunsetTexture;
         RenderTarget m_zprepassRenderTarget;                            // ZPrepass描画用のレンダリングターゲット
         RenderTarget m_mainRenderTarget;                                // メインレンダリングターゲット
         RenderTarget m_mainRTSnapshots[(int)EnMainRTSnapshot::enNum];   // メインレンダリングターゲットのスナップショット

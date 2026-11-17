@@ -45,6 +45,8 @@ namespace nsK2Engine {
         // ポストエフェクト的にディファードライティングを行うためのスプライトを初期化
         SpriteInitData spriteInitData;
 
+        m_sunsetTexture.InitFromDDSFile(L"Assets/modelData/Sky.dds");
+
         // 画面全体にレンダリングするので幅と高さはフレームバッファーの幅と高さと同じ
         spriteInitData.m_width = g_graphicsEngine->GetFrameBufferWidth();
         spriteInitData.m_height = g_graphicsEngine->GetFrameBufferHeight();
@@ -77,6 +79,8 @@ namespace nsK2Engine {
             spriteInitData.m_expandShaderResoruceView[6] = &m_giTextureBlur[eGITextureBlur_128x128].GetBokeTexture();
         }
 
+        spriteInitData.m_expandShaderResoruceView[7] = &m_sunsetTexture;
+
         for (int i = 0; i < MAX_DIRECTIONAL_LIGHT; i++)
         {
             for (int areaNo = 0; areaNo < NUM_SHADOW_MAP; areaNo++)
@@ -93,6 +97,7 @@ namespace nsK2Engine {
         spriteInitData.m_colorBufferFormat[0] = DXGI_FORMAT_R16G16B16A16_FLOAT;
         // 初期化データを使ってスプライトを作成
         m_diferredLightingSprite.Init(spriteInitData);
+        m_diferredLightingSprite.SetIgnoreCamera2D(true);
     }
     void RenderingEngine::ReInitIBL(const wchar_t* iblTexFilePath, float luminance)
     {

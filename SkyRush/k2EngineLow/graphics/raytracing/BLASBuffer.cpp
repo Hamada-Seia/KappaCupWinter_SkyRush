@@ -33,6 +33,8 @@ namespace nsK2EngineLow {
 				D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
 				d3dDevice->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
 
+
+				// スクラッチバッファがなければ生成する。
 				if (instance->m_blasStructuredBuffers.pScratch == nullptr) {
 					instance->m_blasStructuredBuffers.pScratch = CreateBuffer(
 						d3dDevice,
@@ -40,7 +42,10 @@ namespace nsK2EngineLow {
 						D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
 						D3D12_RESOURCE_STATE_COMMON,
 						kDefaultHeapProps);
+				}
 
+				// 結果保存用バッファがなければ生成する。
+				if (instance->m_blasStructuredBuffers.pResult == nullptr) {
 					instance->m_blasStructuredBuffers.pResult = CreateBuffer(
 						d3dDevice,
 						info.ResultDataMaxSizeInBytes,
@@ -48,6 +53,14 @@ namespace nsK2EngineLow {
 						D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
 						kDefaultHeapProps);
 				}
+
+				// どちらかの生成に失敗したら処理を中断する。
+				if (instance->m_blasStructuredBuffers.pScratch == nullptr ||
+					instance->m_blasStructuredBuffers.pResult == nullptr) {
+					OutputDebugStringA("BLAS Buffer creation failed!\n");
+					return;
+				}
+
 				// Create the bottom-level AS
 				D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC asDesc = {};
 				asDesc.Inputs = inputs;
