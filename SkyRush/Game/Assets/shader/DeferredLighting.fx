@@ -115,6 +115,23 @@ float3 CalcWorldPosFromUVZ( float2 uv, float zInScreen, float4x4 mViewProjInv )
 	worldPos.xyz /= worldPos.w;
 	return worldPos.xyz;
 }
+
+// ワールド方向から夕焼け画像のUVを計算する
+float2 CalcSunsetUV(float3 worldDir)
+{
+    float2 uv;
+
+    // 左右方向
+    uv.x = atan2(worldDir.x, worldDir.z)
+        / 6.2831853f + 0.5f;
+
+    // 上下方向
+    uv.y = acos(clamp(worldDir.y, -1.0f, 1.0f))
+        / 3.14159265f;
+
+    return uv;
+}
+
 /*!
  * @brief	ディレクションライトの反射光を計算
  *@param[in]	normal			サーフェイスの法線。
@@ -314,7 +331,24 @@ float4 PSMainCore(PSInput In, uniform int isSoftShadow)
     //アルベドカラーをサンプリング。
     float4 albedoColor = albedoTexture.Sample(Sampler, In.uv);
     if (albedoColor.w >= 0.99999f)
-        return g_sunsetTexture.Sample(Sampler, In.uv);
+    {
+        // 画面の奥にあるワールド座標を取得
+        float3 farWorldPos = CalcWorldPosFromUVZ(
+            In.uv,
+            1.0f,
+            light.mViewProjInv
+        );
+
+        // カメラから見たワールド方向を計算
+        float3 worldDir = normalize(
+            farWorldPos - light.eyePos
+        );
+
+        // ワールド方向から夕焼け画像のUVを計算
+        float2 sunsetUV = CalcSunsetUV(worldDir);
+
+        return g_sunsetTexture.Sample(Sampler, sunsetUV);
+    }
     
     //法線をサンプリング。
     float3 normal = normalTexture.Sample(Sampler, In.uv).xyz;

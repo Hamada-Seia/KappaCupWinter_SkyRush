@@ -61,9 +61,9 @@ namespace nsK2EngineLow {
 		m_manager->SetCurveLoader(Effekseer::MakeRefPtr<Effekseer::CurveLoader>());
 
 		// Game::Start() で ResistEffect を呼んでも読み込めるよう、ローダーをここでも設定する
-		//m_manager->SetTextureLoader(m_renderer[0]->CreateTextureLoader());
-		//m_manager->SetModelLoader(m_renderer[0]->CreateModelLoader());
-		//m_manager->SetMaterialLoader(m_renderer[0]->CreateMaterialLoader());
+		m_manager->SetTextureLoader(m_renderer[0]->CreateTextureLoader());
+		m_manager->SetModelLoader(m_renderer[0]->CreateModelLoader());
+		m_manager->SetMaterialLoader(m_renderer[0]->CreateMaterialLoader());
 
 		OutputDebugStringA("EffectEngine Initialize Finished\n");
 
@@ -165,110 +165,31 @@ namespace nsK2EngineLow {
 
 	void EffectEngine::ResistEffect(const int number, const char16_t* filePath)
 	{
-		// Managerが生成されているか確認
-		if (m_manager == nullptr) {
-			OutputDebugStringA("ERROR: m_manager is nullptr!\n");
+		if (m_manager == nullptr || filePath == nullptr) {
+			OutputDebugStringA("ERROR: manager or filePath is nullptr!\n");
+			return;
+		}
+		if (m_effectMap.find(number) != m_effectMap.end()) {
 			return;
 		}
 
-		// ファイルパスが空でないか確認
-		if (filePath == nullptr) {
-			OutputDebugStringA("ERROR: filePath is nullptr!\n");
+		auto effect = Effekseer::Effect::Create(m_manager, filePath);
+		if (effect == nullptr) {
+			OutputDebugStringA("ERROR: Effect::Create failed!\n");
 			return;
 		}
 
-		OutputDebugStringA("Manager OK\n");
-		OutputDebugStringA("\n");
-
-		Effekseer::EffectRef effect;
-		auto it = m_effectMap.find(number);
-
-		if (it == m_effectMap.end()) {
-
-			// エフェクト読み込み開始の確認
-			OutputDebugStringA("Effect Create Start\n");
-
-			// ManagerのSettingを取得
-			auto setting = m_manager->GetSetting();
-
-			if (setting == nullptr) {
-				OutputDebugStringA("ERROR: Setting is nullptr!\n");
-				return;
-			}
-
-			OutputDebugStringA("Setting OK\n");
-
-			// EffectLoaderを確認
-			auto effectLoader = setting->GetEffectLoader();
-
-			if (effectLoader == nullptr) {
-				OutputDebugStringA("ERROR: EffectLoader is nullptr!\n");
-				return;
-			}
-
-			OutputDebugStringA("EffectLoader OK\n");
-
-			//effect = Effekseer::Effect::Create(m_manager, filePath);
-
-			// EffectLoader単体でファイルを読み込めるか確認
-			void* data = nullptr;
-			int32_t size = 0;
-
-			OutputDebugStringA("Effect Load Start\n");
-
-			bool loadResult = effectLoader->Load(filePath, data, size);
-
-			if (!loadResult) {
-				OutputDebugStringA("ERROR: EffectLoader Load failed!\n");
-				return;
-			}
-
-			OutputDebugStringA("EffectLoader Load OK\n");
-
-			// 読み込んだデータの状態を確認
-			char message[256];
-			sprintf_s(
-				message,
-				"Effect data: address=%p, size=%d\n",
-				data,
-				size
-			);
-			OutputDebugStringA(message);
-
-			// データが空なら生成処理を行わない
-			if (data == nullptr || size <= 0) {
-				OutputDebugStringA("ERROR: Effect data is invalid!\n");
-				effectLoader->Unload(data, size);
-				return;
-			}
-
-			// 読み込んだデータからエフェクトを生成
-			effect = Effekseer::Effect::Create(m_manager, data, size);
-
-			if (effect == nullptr) {
-				OutputDebugStringA("ERROR: Create from data failed!\n");
-			}
-			else {
-				OutputDebugStringA("Create from data OK!\n");
-			}
-
-			// 読み込んだデータを解放
-			effectLoader->Unload(data, size);
-
-			if (effect == nullptr) {
-				return;
-			}
-
-			// エフェクトを登録
-			m_effectMap.insert({ number, effect });
-
-
-			if (effect == nullptr) {
-				OutputDebugStringA("ERROR: Effect::Create failed!\n");
-				return;
-			}
-
-			m_effectMap.insert({ number, effect });
+		// 確認用:画像の読み込み状況(出力ウィンドウ)
+		char msg[256];
+		sprintf_s(msg, "Effect %d: texture count = %d\n", number, effect->GetColorImageCount());
+		OutputDebugStringA(msg);
+		for (int i = 0; i < effect->GetColorImageCount(); i++) {
+			char path[512];
+			Effekseer::ConvertUtf16ToUtf8(path, sizeof(path), effect->GetColorImagePath(i));
+			OutputDebugStringA(path);
+			OutputDebugStringA(effect->GetColorImage(i).Get() != nullptr ? " : OK\n" : " : NOT LOADED\n");
 		}
+
+		m_effectMap.insert({ number, effect });
 	}
 }

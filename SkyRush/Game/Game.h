@@ -45,9 +45,9 @@ private:
     const float SEA_HALF_Z = 13344.70f;
 
     // 海面の端からの残り距離で危険度を判定
-    const float WARNING_REMAINING = 3200.0f;
-    const float DAMAGE_REMAINING = 2400.0f;
-    const float GAMEOVER_REMAINING = 640.0f;
+    const float WARNING_REMAINING = 3600.0f;
+    const float DAMAGE_REMAINING = 2800.0f;
+    const float GAMEOVER_REMAINING = 1000.0f;
 
     // 飛行範囲ダメージ
     int m_boundaryDamageTimer = 0;
@@ -110,6 +110,9 @@ private:
     nsK2Engine::SpriteRender m_titleUI;
     nsK2Engine::SpriteRender m_clearUI;
     nsK2Engine::SpriteRender m_gameOverUI;
+
+    // 小敵の攻撃予告ライン
+    nsK2Engine::SpriteRender m_warningLine;
 
     // ゲームの進行状態
     GameState m_gameState = GameState::Title;

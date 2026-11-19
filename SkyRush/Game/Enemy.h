@@ -19,6 +19,12 @@ public:
     // 突進を開始した瞬間か確認する
     bool IsChargeStarted() const;
 
+    // 攻撃予告中か確認
+    bool IsWarning() const;
+
+    // 攻撃対象として保存した座標を取得
+    Vector3 GetSavedPlayerPos() const;
+
     // この突進ですでにダメージを与えたか確認・変更する
     bool HasDamaged() const;
     void SetHasDamaged(bool hasDamaged);
@@ -35,6 +41,13 @@ private:
     bool m_isCharging = false;
     int m_attackTimer = 0;
     int m_chargeTimer = 0;
+
+    // 攻撃予告
+    bool m_isWarning = false;          // 赤ライン表示中か
+    int m_warningTimer = 0;            // 予告時間
+    Vector3 m_savedPlayerPos;          // 予告開始時のプレイヤー座標
+    Vector3 m_chargeDirection;        // 突進方向
+
 
     // 突進開始時のダメージ判定を管理
     bool m_hasDamaged = false;

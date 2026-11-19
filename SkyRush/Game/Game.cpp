@@ -7,7 +7,16 @@
 using namespace nsK2EngineLow;
 
 bool Game::Start()
+
+
 {
+
+    // エンジン噴射エフェクトを登録
+     EffectEngine::GetInstance()->ResistEffect(0, u"Assets/effect/Engine160.efkefc");
+
+    // 敵撃破エフェクトを登録
+    EffectEngine::GetInstance()->ResistEffect(1, u"Assets/effect/Explo160.efkefc");
+
     // 射撃音
     g_soundEngine->ResistWaveFileBank(0, "Assets/Shader/sound/Shot.wav");
     // 敵撃破音
@@ -38,6 +47,12 @@ bool Game::Start()
     m_titleUI.Init("Assets/modelData/Title.DDS", 1920.0f, 1080.0f);
     m_clearUI.Init("Assets/modelData/GameClear.DDS", 1920.0f, 1080.0f);
     m_gameOverUI.Init("Assets/modelData/GameOver.DDS", 1920.0f, 1080.0f);
+
+    // 小敵の攻撃予告ラインを初期化
+    m_warningLine.Init("Assets/modelData/RedLine.DDS", 400.0f, 400.0f);
+
+    // 画像の中心を回転の基準にする
+    m_warningLine.SetPivot(Vector2(0.5f, 0.5f));
 
     // HPバーの背景（中央基準）
     m_hpBase.Init("Assets/modelData/HP.DDS", 400.0f, 32.0f);
@@ -98,6 +113,19 @@ bool Game::Start()
     // 自機の移動初期化
     m_playerMove.Init();
 
+    // 前回分が残っていたら消す
+    if (m_engineEffect != nullptr)
+    {
+        m_engineEffect->Stop();
+        DeleteGO(m_engineEffect);
+        m_engineEffect = nullptr;
+    }
+    m_engineEffect = NewGO<EffectEmitter>(0);
+    m_engineEffect->Init(0);
+    m_engineEffect->SetScale(Vector3(12.0f, 12.0f, 12.0f));   // 仮
+    m_engineEffect->SetPosition(m_playerMove.GetPosition());
+    m_engineEffect->Play();
+
     m_modelRender.SetPosition(m_playerMove.GetPosition());
 
     // 弾の初期化
@@ -130,11 +158,7 @@ bool Game::Start()
     // エンジン音の音量
     m_engineSound->SetVolume(1.6f);
 
-    // エンジン噴射エフェクトを登録
-    //EffectEngine::GetInstance()->ResistEffect(0,u"Assets/effect/EngineEffect.efkefc");
 
-    // 敵撃破エフェクトを登録
-    //EffectEngine::GetInstance()->ResistEffect(1, u"Assets/effect/ExplosionEffect.efkefc");
 
     return true;
 }
@@ -191,6 +215,13 @@ void Game::Update()
     if (m_gameState == GameState::Clear ||
         m_gameState == GameState::GameOver)
     {
+        if (m_engineEffect != nullptr)
+        {
+            m_engineEffect->Stop();
+            DeleteGO(m_engineEffect);
+            m_engineEffect = nullptr;
+        }
+
         // タイトルに戻る入力
         bool returnToTitle = false;
 
@@ -470,6 +501,19 @@ void Game::Update()
 
     m_modelRender.SetPosition(m_playerMove.GetPosition());
     m_modelRender.SetRotation(m_playerMove.GetRotation());
+
+    if (m_engineEffect != nullptr)
+    {
+        const float BACK = -10.0f;   // 機体の後ろへ(大きいほど後ろ)
+        const float UP = 0.0f;    // 上下の位置
+
+        Vector3 enginePos = m_playerMove.GetPosition()
+            - m_playerMove.GetForward() * BACK;
+        enginePos.y += UP;
+        m_engineEffect->SetPosition(enginePos);
+        m_engineEffect->SetRotation(m_playerMove.GetRotation());
+    }
+
     m_modelRender.Update();
 
     // カメラの追従
@@ -488,6 +532,56 @@ void Game::Update()
     // カメラの行列を最新状態にする
     g_camera3D->GetViewProjectionMatrix();
     Vector2 enemyScreenPos;
+
+    // 攻撃予告中だけ赤ラインの位置を更新
+    if (m_enemy.IsWarning() && !m_enemy.IsDead())
+    {
+        Vector2 enemyLinePos;
+        Vector2 targetLinePos;
+
+        // ラインの始点：敵の位置
+        Vector3 enemyWorldPos = m_enemy.GetPosition();
+        enemyWorldPos.y += 5.0f;
+
+        // ラインの終点：予告開始時に保存したプレイヤー位置
+        Vector3 targetWorldPos = m_enemy.GetSavedPlayerPos();
+
+        // 3D座標を画面座標に変換
+        g_camera3D->CalcScreenPositionFromWorldPosition(
+            enemyLinePos, enemyWorldPos
+        );
+
+        g_camera3D->CalcScreenPositionFromWorldPosition(
+            targetLinePos, targetWorldPos
+        );
+
+        // 2点の中間をラインの表示位置にする
+        Vector3 lineCenter(
+            (enemyLinePos.x + targetLinePos.x) * 0.5f,
+            (enemyLinePos.y + targetLinePos.y) * 0.5f,
+            0.0f
+        );
+
+        // 画面上でのラインの長さと角度
+        float dx = targetLinePos.x - enemyLinePos.x;
+        float dy = targetLinePos.y - enemyLinePos.y;
+
+        float lineLength = sqrtf(dx * dx + dy * dy);
+        float lineAngle = atan2f(dy, dx);
+
+        m_warningLine.SetPosition(lineCenter);
+
+        // 画像内の赤い部分の横幅は約312px
+        m_warningLine.SetScale(Vector3(lineLength / 312.0f, 1.0f, 1.0f));
+
+        // 赤ラインを敵から保存したプレイヤー位置の方向へ回転
+        Quaternion lineRotation;
+        lineRotation.SetRotationZ(lineAngle);
+        m_warningLine.SetRotation(lineRotation);
+
+        // 赤ラインの表示を更新
+        m_warningLine.Update();
+    }
 
     // 照準位置を敵の原点より上にする
     Vector3 enemyAimPos = m_enemy.GetPosition();
@@ -672,6 +766,13 @@ void Game::Update()
                 if (m_enemy.IsDead())
                 {
                     m_defeatedEnemyCount++;
+
+                    auto* explosion = NewGO<EffectEmitter>(0);
+                    explosion->Init(1);
+                    explosion->SetPosition(enemyPos);
+                    explosion->SetScale(Vector3(20.0f, 20.0f, 20.0f));   // 仮
+                    explosion->Play();
+
                     break;
                 }
             }
@@ -737,6 +838,13 @@ void Game::Render(RenderContext& rc)
     }
     m_bullets.Render(rc);
     m_enemy.Render(rc);
+
+    // 敵が攻撃予告中なら赤ラインを描画
+    if (m_enemy.IsWarning() && !m_enemy.IsDead())
+    {
+        m_warningLine.Draw(rc);
+    }
+
     m_reticle.Draw(rc);
     m_ab.Draw(rc);
 

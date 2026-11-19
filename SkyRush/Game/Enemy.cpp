@@ -35,55 +35,68 @@ void Enemy::Init(const Vector3& pos)
     m_isCharging = false;
     m_hasDamaged = false;
     m_chargeStarted = false;
+
+    m_isWarning = false;
+    m_warningTimer = 0;
+    m_savedPlayerPos = Vector3::Zero;
+    m_chargeDirection = Vector3::Zero;
 }
 
 void Enemy::Update(const Vector3& playerPos)
 {
-    // 突進開始フラグを毎フレームリセット
     m_chargeStarted = false;
 
-    //撃墜されると更新を停止
     if (IsDead())
         return;
 
-
     Vector3 diff = m_pos - playerPos;
-
-
     float distance = diff.Length();
 
+    // ① 突進中
     if (m_isCharging)
     {
-        // プレイヤーに向かって突進
-        Vector3 chargeDir = playerPos - m_pos;
-        chargeDir.Normalize();
-
-        m_pos += chargeDir * (m_moveSpeed * 3.5f);
+        m_pos += m_chargeDirection * (m_moveSpeed * 3.5f);
 
         m_chargeTimer--;
 
-        // 突進終了
         if (m_chargeTimer <= 0)
         {
             m_isCharging = false;
             m_attackTimer = rand() % 180 + 120;
         }
     }
-    else
+    // ② 攻撃予告中
+    else if (m_isWarning)
     {
-        m_attackTimer--;
-        // 攻撃開始
-        if (m_attackTimer <= 0)
+        m_warningTimer--;
+
+        // 予告終了後、保存地点に向かって突進
+        if (m_warningTimer <= 0)
         {
+            m_isWarning = false;
             m_isCharging = true;
             m_chargeTimer = 30;
 
-            // 突進開始を知らせる
+            m_chargeDirection = m_savedPlayerPos - m_pos;
+            m_chargeDirection.Normalize();
+
             m_chargeStarted = true;
-
-            // 次の突進に備えてダメージ判定をリセット
             m_hasDamaged = false;
+        }
+    }
+    // ③ 通常時
+    else
+    {
+        m_attackTimer--;
 
+        if (m_attackTimer <= 0)
+        {
+            // 攻撃開始時のプレイヤー座標を保存
+            m_savedPlayerPos = playerPos;
+
+            // 予告開始
+            m_isWarning = true;
+            m_warningTimer = 45;
         }
         else
         {
@@ -163,4 +176,16 @@ bool Enemy::HasDamaged() const
 void Enemy::SetHasDamaged(bool hasDamaged)
 {
     m_hasDamaged = hasDamaged;
+}
+
+// 攻撃予告中か取得
+bool Enemy::IsWarning() const
+{
+    return m_isWarning;
+}
+
+// 保存したプレイヤー座標を取得
+Vector3 Enemy::GetSavedPlayerPos() const
+{
+    return m_savedPlayerPos;
 }
