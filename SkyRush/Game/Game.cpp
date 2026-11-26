@@ -10,6 +10,8 @@ bool Game::Start()
 
 
 {
+    g_renderingEngine->SetDirectionLight(0, Vector3(0.0f, -1.0f, 0.0f), Vector3(1.0f, 0.3f, 0.3f));
+
 
     // エンジン噴射エフェクトを登録
      EffectEngine::GetInstance()->ResistEffect(0, u"Assets/effect/Engine160.efkefc");
@@ -21,8 +23,7 @@ bool Game::Start()
     g_soundEngine->ResistWaveFileBank(0, "Assets/Shader/sound/Shot.wav");
     // 敵撃破音
     g_soundEngine->ResistWaveFileBank(1, "Assets/Shader/Sound/Gekiha.wav");
-    // 乱気流エリアの警告音
-    g_soundEngine->ResistWaveFileBank(2, "Assets/Shader/Sound/Keikoku.wav");
+
     // 自機のエンジン音
     g_soundEngine->ResistWaveFileBank(3, "Assets/Shader/Sound/Engine.wav");
     // 敵の突進音
@@ -30,12 +31,26 @@ bool Game::Start()
 
     //戦闘機
     m_modelRender.Init("Assets/modelData/fighter.tkm");
+    // 自機を少し小さくする
+    m_modelRender.SetScale(Vector3(0.5f, 0.5f, 0.5f));
 
-    //海面
+    // 海面モデルを初期化
     m_seaRender.Init("Assets/modelData/Kaimen.tkm");
+    m_seaRender2.Init("Assets/modelData/Kaimen.tkm");
 
-    // 危険区域用の紫色の海面
-    m_purpleSeaRender.Init("Assets/modelData/PKaimen.tkm");
+    // 海面スクロール位置を初期化
+    m_seaScrollZ = 0.0f;
+
+    // 海面1枚分の長さ
+    const float SEA_LENGTH = 10275.225f;
+
+    // 1枚目
+    m_seaRender.SetScale(Vector3(75.0f, 1.0f, 75.0f));
+    m_seaRender.SetPosition(0.0f, -5.0f, 0.0f);
+
+    // 2枚目を1枚目の前方に配置
+    m_seaRender2.SetScale(Vector3(75.0f, 1.0f, 75.0f));
+    m_seaRender2.SetPosition(0.0f, -5.0f, SEA_LENGTH);
 
     // レティクル
     m_reticle.Init("Assets/modelData/rtkr_green.DDS", 110.0f, 90.0f);
@@ -104,14 +119,26 @@ bool Game::Start()
     // 背景の右端に合わせる
     m_heatGauge.SetPosition(Vector3(750.0f, -450.0f, 0.0f));
 
-    // 飛行範囲の警告文
-    m_boundaryWarning.SetText(L"");
-    m_boundaryWarning.SetPosition(-300.0f, 180.0f, 0.0f);
-    m_boundaryWarning.SetScale(1.5f);
-    m_boundaryWarning.SetColor(1.0f, 1.0f, 0.0f, 1.0f);
 
     // 自機の移動初期化
     m_playerMove.Init();
+
+    // 自機の初期位置と向きを取得
+    Vector3 initialPlayerPos = m_playerMove.GetPosition();
+    Vector3 initialForward = m_playerMove.GetForward();
+
+    // カメラの初期位置を決める
+    Vector3 cameraPos = initialPlayerPos - initialForward * 75.0f;
+    cameraPos.y += 38.0f;
+
+    // カメラの注視位置を決める
+    Vector3 cameraTarget = initialPlayerPos + initialForward * 20.0f;
+    cameraTarget.y += 30.0f;
+
+    // カメラを初期位置に固定
+    g_camera3D->SetPosition(cameraPos);
+    g_camera3D->SetTarget(cameraTarget);
+    g_camera3D->GetViewProjectionMatrix();
 
     // 前回分が残っていたら消す
     if (m_engineEffect != nullptr)
@@ -131,15 +158,12 @@ bool Game::Start()
     // 弾の初期化
     m_bullets.Init();
 
+    // 海面スクロール位置を初期化
+    m_seaScrollZ = 0.0f;
     // 海面の位置
     m_seaRender.SetPosition(0.0f, -5.0f, 0.0f);
     // 海面の大きさ
-    m_seaRender.SetScale(Vector3(200.0f, 1.0f, 200.0f));
-
-    // 紫色の海面も通常の海面と同じ位置・大きさにする
-    m_purpleSeaRender.SetPosition(0.0f, -5.0f, 0.0f);
-    m_purpleSeaRender.SetScale(Vector3(200.0f, 1.0f, 200.0f));
-
+    m_seaRender.SetScale(Vector3(75.0f, 1.0f, 75.0f));
     //PlayerHPの初期化
     m_playerHP.Init();
 
@@ -148,8 +172,7 @@ bool Game::Start()
     m_defeatedEnemyCount = 0;
     m_gameState = GameState::Title;
 
-    // 警告範囲の状態をリセット
-    m_wasInWarningArea = false;
+
 
     // 自機のエンジン音源を作成
     m_engineSound = NewGO<SoundSource>(0);
@@ -190,12 +213,6 @@ void Game::Update()
 
             m_defeatedEnemyCount = 0;
             m_shotCoolTime = 0;
-
-            // 飛行範囲ダメージのタイマーをリセット
-            m_boundaryDamageTimer = 0;
-
-            // 警告範囲の状態をリセット
-            m_wasInWarningArea = false;
 
             // オーバーヒート状態をリセット
             m_heat = 0.0f;
@@ -337,144 +354,13 @@ void Game::Update()
     }
 
 
-// 飛行範囲制限
-// 自機の現在位置を取得
-    Vector3 boundaryPlayerPos = m_playerMove.GetPosition();
-
-    // X方向・Z方向それぞれの海面の端までの残り距離
-    float remainingX = SEA_HALF_X - fabsf(boundaryPlayerPos.x);
-    float remainingZ = SEA_HALF_Z - fabsf(boundaryPlayerPos.z);
-
-    // 四辺のうち、最も近い端までの距離を取得
-    float remainingDistance = remainingX;
-
-    if (remainingZ < remainingDistance)
-    {
-        remainingDistance = remainingZ;
-    }
-
-    // 継続ダメージ範囲に入ったら紫色の海面に切り替える
-    m_isPurpleSea = (remainingDistance <= DAMAGE_REMAINING);
-
-    // 警告範囲に入ったか判定
-    bool isInWarningArea = (remainingDistance <= WARNING_REMAINING);
-
-    // 警告範囲に入った瞬間だけ警告音を再生
-    if (isInWarningArea && !m_wasInWarningArea)
-    {
-        auto soundSource = NewGO<SoundSource>(0);
-        soundSource->Init(2);
-        soundSource->Play(false);
-    }
-
-    // 現在の警告範囲の状態を保存
-    m_wasInWarningArea = isInWarningArea;
-
-    // ゲームオーバー
-    if (remainingDistance <= GAMEOVER_REMAINING)
-    {
-        m_gameState = GameState::GameOver;
-        return;
-    }
-
-    // 継続ダメージ
-    if (remainingDistance <= DAMAGE_REMAINING)
-    {
-        m_boundaryDamageTimer++;
-
-        if (m_boundaryDamageTimer >= BOUNDARY_DAMAGE_INTERVAL)
-        {
-            m_playerHP.Damage(BOUNDARY_DAMAGE);
-            m_boundaryDamageTimer = 0;
-        }
-    }
-    else
-    {
-        // ダメージ範囲から戻ったらタイマーをリセット
-        m_boundaryDamageTimer = 0;
-    }
 
 
-    // 海面の内側へ戻る方向を調べる
-    Vector3 inwardDirection = Vector3::Zero;
 
-    // 左右の端と前後の端、どちらが近いか判定
-    if (remainingX < remainingZ)
-    {
-        // X方向の端が近い
-        inwardDirection.x =
-            (boundaryPlayerPos.x > 0.0f) ? -1.0f : 1.0f;
-    }
-    else
-    {
-        // Z方向の端が近い
-        inwardDirection.z =
-            (boundaryPlayerPos.z > 0.0f) ? -1.0f : 1.0f;
-    }
-
-    // 自機の向きと右方向を取得
-    Vector3 playerForward = m_playerMove.GetForward();
-    Vector3 playerRight = m_playerMove.GetRight();
-
-    // 戻る方向が機首の前後どちらか判定
-    float forwardDot =
-        inwardDirection.x * playerForward.x +
-        inwardDirection.z * playerForward.z;
-
-    // 戻る方向が自機から見て左右どちらか判定
-    float rightDot =
-        inwardDirection.x * playerRight.x +
-        inwardDirection.z * playerRight.z;
-
-    // 表示する方向を決定
-    const wchar_t* directionText;
-
-    if (forwardDot > 0.7f)
-    {
-        directionText = L"KEEP COURSE";
-    }
-    else if (forwardDot < -0.7f)
-    {
-        directionText = L"TURN AROUND";
-    }
-    else if (rightDot > 0.0f)
-    {
-        directionText = L"TURN RIGHT";
-    }
-    else
-    {
-        directionText = L"TURN LEFT";
-    }
-
-    // 飛行範囲の警告表示を切り替える
-    if (remainingDistance <= DAMAGE_REMAINING)
-    {
-        // 継続ダメージ範囲
-        wchar_t warningText[128];
-
-        swprintf_s(warningText, L"DANGER: %ls", directionText);
-
-        m_boundaryWarning.SetText(warningText);
-        m_boundaryWarning.SetColor(1.0f, 0.0f, 0.0f, 1.0f);
-    }
-    else if (remainingDistance <= WARNING_REMAINING)
-    {
-        // 警告範囲
-        wchar_t warningText[128];
-
-        swprintf_s(warningText, L"WARNING: %ls", directionText);
-
-        m_boundaryWarning.SetText(warningText);
-        m_boundaryWarning.SetColor(1.0f, 1.0f, 0.0f, 1.0f);
-    }
-    else
-    {
-        // 通常範囲では警告を消す
-        m_boundaryWarning.SetText(L"");
-    }
-
-
-    m_enemy.Update(m_playerMove.GetPosition());
+    m_enemy.Update(
+        m_playerMove.GetPosition(),
+        m_playerMove.GetForward()
+    );
 
     // 自機と敵の接触判定
     if (!m_enemy.IsDead() && !m_playerHP.IsDead())
@@ -516,18 +402,6 @@ void Game::Update()
 
     m_modelRender.Update();
 
-    // カメラの追従
-    Vector3 playerPos = m_playerMove.GetPosition();
-    Vector3 forward = m_playerMove.GetForward();
-
-    Vector3 cameraPos = playerPos - forward * 75.0f;
-    cameraPos.y += 38.0f;
-
-    Vector3 cameraTarget = playerPos + forward * 20.0f;
-    cameraTarget.y += 30.0f;
-
-    g_camera3D->SetPosition(cameraPos);
-    g_camera3D->SetTarget(cameraTarget);
 
     // カメラの行列を最新状態にする
     g_camera3D->GetViewProjectionMatrix();
@@ -571,8 +445,8 @@ void Game::Update()
 
         m_warningLine.SetPosition(lineCenter);
 
-        // 画像内の赤い部分の横幅は約312px
-        m_warningLine.SetScale(Vector3(lineLength / 312.0f, 1.0f, 1.0f));
+        // 赤ラインの大きさ
+        m_warningLine.SetScale(Vector3(lineLength / 312.0f, 2.0f, 1.0f));
 
         // 赤ラインを敵から保存したプレイヤー位置の方向へ回転
         Quaternion lineRotation;
@@ -592,11 +466,12 @@ void Game::Update()
         enemyAimPos
     );
 
-    // カメラの向きを計算
-    Vector3 cameraForward = cameraTarget - cameraPos;
+    // 固定カメラの向きを取得
+    Vector3 cameraForward = g_camera3D->GetForward();
 
-    // カメラから敵への方向
-    Vector3 toEnemy = m_enemy.GetPosition() - cameraPos;
+    // 固定カメラから敵への方向
+    Vector3 toEnemy =
+        m_enemy.GetPosition() - g_camera3D->GetPosition();
 
     // 敵がカメラの前にいるか判定
     float cameraDistance =
@@ -793,9 +668,28 @@ void Game::Update()
 
 
     // 海面モデルの更新
-    m_seaRender.Update();
-    m_purpleSeaRender.Update();
+// 海面を後方へスクロール
+    m_seaScrollZ -= 10.0f;
 
+    // 1枚分進んだら位置をリセット
+    if (m_seaScrollZ <= -10275.225f)
+    {
+        m_seaScrollZ += 10275.225f;
+    }
+
+    // 1枚目の位置
+    m_seaRender.SetPosition(
+        0.0f, -5.0f, m_seaScrollZ
+    );
+
+    // 2枚目の位置
+    m_seaRender2.SetPosition(
+        0.0f, -5.0f, m_seaScrollZ + 10275.225f
+    );
+
+    // 海面を更新
+    m_seaRender.Update();
+    m_seaRender2.Update();
 
 }
 
@@ -827,16 +721,13 @@ void Game::Render(RenderContext& rc)
     {
         m_modelRender.Draw(rc);
     }
-    // 危険区域かどうかで海面を切り替える
-    if (m_isPurpleSea)
-    {
-        m_purpleSeaRender.Draw(rc);
-    }
-    else
-    {
-        m_seaRender.Draw(rc);
-    }
+    // 海面を描画
+// 海面を描画
+    m_seaRender.Draw(rc);
+    m_seaRender2.Draw(rc);
+
     m_bullets.Render(rc);
+
     m_enemy.Render(rc);
 
     // 敵が攻撃予告中なら赤ラインを描画
@@ -864,6 +755,4 @@ void Game::Render(RenderContext& rc)
     m_heatLabel.Draw(rc);
     m_heatNumber.Draw(rc);
 
-    // 飛行範囲の警告文を描画
-    m_boundaryWarning.Draw(rc);
 }

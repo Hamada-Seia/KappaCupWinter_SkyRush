@@ -20,6 +20,9 @@ void ReportLiveObjects()
 
 	// o—ÍB
 	pDxgiDebug->ReportLiveObjects(DXGI_DEBUG_D3D12, DXGI_DEBUG_RLO_DETAIL);
+
+
+
 }
 
 ///////////////////////////////////////////////////////////////////

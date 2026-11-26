@@ -6,7 +6,7 @@ class Enemy
 {
 public:
     void Init(const Vector3& pos);
-    void Update(const Vector3& playerPos);
+    void Update(const Vector3& playerPos, const Vector3& playerForward);
     void Render(RenderContext& rc);
 
     void Damage(int damage);
@@ -32,6 +32,12 @@ public:
 private:
     ModelRender m_modelRender;
     Vector3 m_pos;
+
+    // 敵が最初に出現した位置（帰還先）
+    Vector3 m_homePos;
+
+    // 突進終了後、初期位置へ戻っているか
+    bool m_isReturning = false;
 
     //プレイヤーと距離を保ちつつ追従
     float m_moveSpeed = 7.0f;

@@ -30,32 +30,16 @@ public:
 
 private:
     ModelRender m_modelRender;
-    ModelRender m_seaRender;
 
-    // 危険区域用の紫色の海面
-    ModelRender m_purpleSeaRender;
-    // 紫色の海面を表示中か
-    bool m_isPurpleSea = false;
+    // 海面モデル
+    ModelRender m_seaRender;
+    ModelRender m_seaRender2;
+
+    // 海面をスクロールさせるための移動量
+    float m_seaScrollZ = 0.0f;
 
     // 自機の移動
     PlayerMove m_playerMove;
-
-    // 海面の端までの距離（海面倍率200の場合）
-    const float SEA_HALF_X = 13700.30f;
-    const float SEA_HALF_Z = 13344.70f;
-
-    // 海面の端からの残り距離で危険度を判定
-    const float WARNING_REMAINING = 3600.0f;
-    const float DAMAGE_REMAINING = 2800.0f;
-    const float GAMEOVER_REMAINING = 1000.0f;
-
-    // 飛行範囲ダメージ
-    int m_boundaryDamageTimer = 0;
-    const int BOUNDARY_DAMAGE_INTERVAL = 15;
-    const int BOUNDARY_DAMAGE = 5;
-
-    // 警告範囲に入っているかどうか
-    bool m_wasInWarningArea = false;
 
     // 自機のエンジン音
     SoundSource* m_engineSound = nullptr;
@@ -102,9 +86,6 @@ private:
     // オーバーヒート文字表示
     nsK2Engine::FontRender m_heatLabel;
     nsK2Engine::FontRender m_heatNumber;
-
-    // 飛行範囲の警告表示
-    nsK2Engine::FontRender m_boundaryWarning;
 
     // 画面UI
     nsK2Engine::SpriteRender m_titleUI;

@@ -11,12 +11,21 @@ void Enemy::Init(const Vector3& pos)
 {
     m_modelRender.Init("Assets/modelData/NormalEnemy.tkm");
     // 敵モデルを2倍に拡大
-    m_modelRender.SetScale(Vector3(2.0f, 2.0f, 2.0f));
+    m_modelRender.SetScale(Vector3(1.0f, 1.0f, 1.0f));
 
     m_pos = pos;
+
+    // 初期位置を帰還先として保存
+    m_homePos = pos;
+
     m_hp = m_maxHP;
 
     m_isCharging = false;
+
+    // 突進・帰還状態をリセット
+    m_isCharging = false;
+    m_isReturning = false;
+
     static bool randomInitialized = false;
     if (!randomInitialized)
     {
@@ -42,49 +51,84 @@ void Enemy::Init(const Vector3& pos)
     m_chargeDirection = Vector3::Zero;
 }
 
-void Enemy::Update(const Vector3& playerPos)
+void Enemy::Update(const Vector3& playerPos, const Vector3& playerForward)
 {
     m_chargeStarted = false;
 
     if (IsDead())
         return;
 
-    Vector3 diff = m_pos - playerPos;
-    float distance = diff.Length();
-
-    // ① 突進中
-    if (m_isCharging)
+    // ① 初期位置へ帰還中
+    if (m_isReturning)
     {
+        // 初期位置までの方向と距離
+        Vector3 toHome = m_homePos - m_pos;
+        float distance = toHome.Length();
+
+        // 初期位置に到着したら待機状態へ
+        if (distance <= m_moveSpeed * 3.5f)
+        {
+            m_pos = m_homePos;
+            m_isReturning = false;
+
+            // 次の攻撃までの時間を設定
+            m_attackTimer = rand() % 180 + 120;
+        }
+        else
+        {
+            // 初期位置へ戻る
+            toHome.Normalize();
+            m_pos += toHome * (m_moveSpeed * 3.5f);
+        }
+    }
+    // ② 突進中
+    else if (m_isCharging)
+    {
+        // 保存したプレイヤー位置へ突進
         m_pos += m_chargeDirection * (m_moveSpeed * 3.5f);
 
         m_chargeTimer--;
 
+        // 突進終了
         if (m_chargeTimer <= 0)
         {
             m_isCharging = false;
-            m_attackTimer = rand() % 180 + 120;
+            m_isReturning = true;
         }
     }
-    // ② 攻撃予告中
+    // ③ 攻撃予告中
     else if (m_isWarning)
     {
         m_warningTimer--;
 
-        // 予告終了後、保存地点に向かって突進
+        // 予告終了後、保存地点へ突進
         if (m_warningTimer <= 0)
         {
             m_isWarning = false;
             m_isCharging = true;
             m_chargeTimer = 30;
 
+            // 保存したプレイヤー位置への方向を計算
             m_chargeDirection = m_savedPlayerPos - m_pos;
-            m_chargeDirection.Normalize();
 
+            // 方向を正規化
+            if (m_chargeDirection.Length() > 0.001f)
+            {
+                m_chargeDirection.Normalize();
+            }
+            else
+            {
+                m_chargeDirection = Vector3::Front;
+            }
+
+            // 突進開始を知らせる
             m_chargeStarted = true;
+
+            // 今回の突進のダメージ判定をリセット
             m_hasDamaged = false;
         }
     }
-    // ③ 通常時
+    // ④ 通常待機中
     else
     {
         m_attackTimer--;
@@ -94,26 +138,13 @@ void Enemy::Update(const Vector3& playerPos)
             // 攻撃開始時のプレイヤー座標を保存
             m_savedPlayerPos = playerPos;
 
-            // 予告開始
+            // 攻撃予告を開始
             m_isWarning = true;
             m_warningTimer = 45;
         }
-        else
-        {
-            // 通常時は一定距離を維持
-            if (distance > m_keepDistance + 10.0f)
-            {
-                diff.Normalize();
-                m_pos -= diff * m_moveSpeed;
-            }
-            else if (distance < m_keepDistance - 10.0f)
-            {
-                diff.Normalize();
-                m_pos += diff * m_moveSpeed;
-            }
-        }
     }
 
+    // 敵モデルの位置を更新
     m_modelRender.SetPosition(m_pos);
     m_modelRender.Update();
 }

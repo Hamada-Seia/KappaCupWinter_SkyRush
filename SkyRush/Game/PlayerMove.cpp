@@ -14,18 +14,19 @@ void PlayerMove::Init()
     m_pitchAngle = 0.0f;
 }
 
+
 void PlayerMove::Update()
 {
     float moveX = 0.0f;
     float moveY = 0.0f;
-    float throttle = 0.0f;
 
     // PAD操作
     if (g_pad[0] != nullptr)
     {
+        // 左スティック左右で横移動
         moveX += g_pad[0]->GetLStickXF();
-        throttle += g_pad[0]->GetLStickYF();
 
+        // LB・RBで上下移動
         if (g_pad[0]->IsPress(enButtonLB1))
             moveY -= 1.0f;
 
@@ -36,8 +37,6 @@ void PlayerMove::Update()
     // キーボード操作
     if (GetAsyncKeyState('A') & 0x8000) moveX -= 1.0f;
     if (GetAsyncKeyState('D') & 0x8000) moveX += 1.0f;
-    if (GetAsyncKeyState('W') & 0x8000) throttle += 1.0f;
-    if (GetAsyncKeyState('S') & 0x8000) throttle -= 1.0f;
     if (GetAsyncKeyState('Q') & 0x8000) moveY -= 1.0f;
     if (GetAsyncKeyState('E') & 0x8000) moveY += 1.0f;
 
@@ -45,35 +44,35 @@ void PlayerMove::Update()
     if (moveX > 1.0f) moveX = 1.0f;
     if (moveX < -1.0f) moveX = -1.0f;
 
-    if (throttle > 1.0f) throttle = 1.0f;
-    if (throttle < -1.0f) throttle = -1.0f;
+    if (moveY > 1.0f) moveY = 1.0f;
+    if (moveY < -1.0f) moveY = -1.0f;
 
-    // 加速・減速
-    m_speed += throttle * 0.1f;
-
-    if (m_speed > m_maxSpeed) m_speed = m_maxSpeed;
-    if (m_speed < m_minSpeed) m_speed = m_minSpeed;
-
-    // 旋回
-    m_yawAngle += moveX * 2.0f;
-
-    float rad = m_yawAngle * 3.14159265f / 180.0f;
-
-    // 機首方向
-    float forwardX = sinf(rad);
-    float forwardZ = cosf(rad);
-
-    // 横方向
-    float rightX = cosf(rad);
-    float rightZ = -sinf(rad);
-
-    // 自機の移動量を計算
-    m_velocity.x = forwardX * m_speed + rightX * moveX * 5.0f;
-    m_velocity.z = forwardZ * m_speed + rightZ * moveX * 5.0f;
+    // 自機の左右・上下の移動量
+    m_velocity.x = moveX * 5.0f;
     m_velocity.y = moveY * 5.0f;
+    m_velocity.z = 0.0f;
 
     // 移動量を反映
     m_pos += m_velocity;
+
+    // 画面外に出ないように移動範囲を制限（仮）
+    const float MOVE_LIMIT_X = 100.0f;
+    const float MOVE_LIMIT_Y = 60.0f;
+
+    if (m_pos.x > MOVE_LIMIT_X)
+        m_pos.x = MOVE_LIMIT_X;
+
+    if (m_pos.x < -MOVE_LIMIT_X)
+        m_pos.x = -MOVE_LIMIT_X;
+
+    if (m_pos.y > MOVE_LIMIT_Y)
+        m_pos.y = MOVE_LIMIT_Y;
+
+    if (m_pos.y < -MOVE_LIMIT_Y)
+        m_pos.y = -MOVE_LIMIT_Y;
+
+    // 機首の向きは常に前方
+    m_yawAngle = 0.0f;
 
     // 左右の傾き
     float targetAngle = -moveX * 25.0f;
@@ -83,6 +82,7 @@ void PlayerMove::Update()
     float targetPitch = -moveY * 25.0f;
     m_pitchAngle += (targetPitch - m_pitchAngle) * 0.15f;
 }
+
 
 Vector3 PlayerMove::GetPosition() const
 {
